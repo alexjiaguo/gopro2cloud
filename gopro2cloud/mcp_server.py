@@ -15,6 +15,7 @@ from gopro2cloud.core import (
     get_remote_index,
     get_free_disk_gb,
     sync_all,
+    cloud_transfer,
     CameraNotFoundError,
 )
 
@@ -191,6 +192,25 @@ def gopro_sync_cancel(job_id: str) -> dict:
             return {"error": f"Job ID '{job_id}' not found."}
         job["status"] = "canceled"
         return {"job_id": job_id, "status": "canceled"}
+
+@mcp.tool()
+def cloud_copy(src: str, dest: str, dry_run: bool = False) -> dict:
+    """
+    Copy a single file or directory directly between cloud remotes with zero local disk usage.
+    Examples:
+      src="onedrive:Documents/clip.mp4", dest="gdrive:GoPro/clip.mp4"
+      src="onedrive:TravelFolder", dest="gdrive:GoPro/TravelFolder"
+    """
+    return cloud_transfer(src=src, dest=dest, is_sync=False, dry_run=dry_run)
+
+@mcp.tool()
+def cloud_sync(src: str, dest: str, dry_run: bool = False) -> dict:
+    """
+    Synchronize a directory directly between cloud remotes with zero local disk usage.
+    Example:
+      src="onedrive:Brazil_Travel_2026", dest="gdrive:GoPro/Brazil_Travel_2026"
+    """
+    return cloud_transfer(src=src, dest=dest, is_sync=True, dry_run=dry_run)
 
 def main():
     mcp.run()

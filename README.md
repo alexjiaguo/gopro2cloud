@@ -52,6 +52,7 @@ When you connect a modern GoPro (HERO 9, 10, 11, 12, 13) via USB-C, it automatic
 ## ✨ Key Features
 
 - **🚀 Direct In-Memory Streaming:** Uses `rclone copyurl` to pipe video bytes straight from the camera socket into your cloud bucket. No local scratch files, no SSD wear.
+- **☁️ CloudSync (Cloud-to-Cloud Direct):** Transfer single files or synchronize entire folders directly between cloud storage providers (OneDrive, Google Drive, Dropbox, AWS S3) with zero local disk footprint.
 - **📁 Smart Date & Chapter Organization:** Automatically sorts recordings into `<remote>/YYYY-MM-DD/` directories. Long 4K recordings split across multiple chapters (`GX010475.MP4`, `GX020475.MP4`) are kept together under Chapter 1's date.
 - **🔁 Intelligent Deduplication:** Checks destination folders before transferring. If a video already exists in your cloud with matching name and size, it is automatically skipped.
 - **🛡️ 100% Card Safety:** `gopro2cloud` never deletes or modifies media on your microSD card unless you explicitly request a post-sync purge.
@@ -145,6 +146,20 @@ gopro2cloud sync --dest dropbox:GoPro_Backups
 gopro2cloud sync --dest s3:my-video-bucket/gopro
 ```
 
+### 4. ☁️ CloudSync: Direct Cloud-to-Cloud Transfers (Zero Local Disk)
+Transfer single files or folders between any configured cloud remotes (e.g. OneDrive to Google Drive) without downloading to local disk:
+```bash
+# Using the standalone cloudsync command
+cloudsync onedrive:Photos/sample.mp4 gdrive:GoPro/
+cloudsync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --sync
+cloudsync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --dry-run
+
+# Or using gopro2cloud subcommands
+gopro2cloud cloud-copy onedrive:Photos/sample.mp4 gdrive:GoPro/
+gopro2cloud cloud-sync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026
+gopro2cloud cloudsync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --dry-run
+```
+
 ---
 
 ## 🤖 AI Agent & MCP Server
@@ -166,13 +181,16 @@ Add this to your MCP configuration (`claude_desktop_config.json` or `mcp_config.
 
 Now you can control your camera conversationally:
 > *"Hey, what videos are on my GoPro?"*  
-> *"Check if my GoPro is connected and sync the newest clips to Google Drive."*
+> *"Check if my GoPro is connected and sync the newest clips to Google Drive."*  
+> *"Copy my vacation folder from OneDrive to Google Drive."*
 
 ---
 
 ## 🗺️ Roadmap
 
 - [x] Zero-disk direct HTTP streaming (`rclone copyurl`)
+- [x] Direct cloud-to-cloud file & folder transfers (`copyto` / `sync`)
+- [x] Resilient socket watchdog & deadlock-safe staging cleanup
 - [x] Intelligent recording date & chapter grouping
 - [x] Recursive deduplication (skips existing files)
 - [x] Multi-cloud support (Google Drive, Dropbox, OneDrive, S3/R2/B2)

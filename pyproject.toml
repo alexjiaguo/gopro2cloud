@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gopro2cloud"
-version = "0.1.0"
+version = "0.2.0"
 description = "Stream and sync GoPro videos directly to any cloud storage with zero local disk footprint"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,3 +21,4 @@ mcp = [
 [project.scripts]
 gopro2cloud = "gopro2cloud.cli:main"
 gopro2cloud-mcp = "gopro2cloud.mcp_server:main"
+cloudsync = "gopro2cloud.cli:main_cloudsync"

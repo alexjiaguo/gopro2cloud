@@ -42,7 +42,22 @@ python3 -m gopro2cloud.cli sync --dest gdrive:GoPro
 - Files already present in the cloud with matching name and size are **automatically skipped**.
 - If a stream transfer drops, the engine automatically attempts a safe single-file staged fallback before moving to the next video.
 
-### 4. Post-Sync Reporting & Safety Guard
+### 4. Direct Cloud-to-Cloud Transfers (Zero Local Disk)
+When moving files between cloud remotes (e.g. OneDrive to Google Drive):
+```bash
+# Transfer a single file
+python3 -m gopro2cloud.cli cloud-copy onedrive:Documents/clip.mp4 gdrive:GoPro/
+
+# Synchronize an entire folder
+python3 -m gopro2cloud.cli cloud-sync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026
+
+# Preview with dry-run
+python3 -m gopro2cloud.cli cloud-sync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --dry-run
+```
+- Transferred directly in-memory across cloud APIs without downloading files to local disk.
+- Automatically benefits from standardized timeout, chunk size (`16M`), retry, and deduplication logic.
+
+### 5. Post-Sync Reporting & Safety Guard
 - Present the final summary: total uploaded, skipped, and any failed items.
 - **SAFETY GUARD:** NEVER offer to format or delete files from the GoPro SD card unless:
   1. 100% of files have been verified in the cloud.

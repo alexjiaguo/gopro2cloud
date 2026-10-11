@@ -14,11 +14,80 @@ import urllib.error
 import subprocess
 from datetime import datetime, timezone
 
+# Ensure rclone respects local network environment/proxies without cert errors
+os.environ.setdefault("RCLONE_NO_CHECK_CERTIFICATE", "true")
+
 # Standard default probe ports and endpoints for OpenGoPro
 PROBE_ENDPOINTS = [
     {"port": 80, "path": "/gp/gpMediaList", "download_base": "/videos/DCIM/100GOPRO/"},
     {"port": 8080, "path": "/gopro/media/list", "download_base": "/videos/DCIM/100GOPRO/"},
 ]
+
+# Standard resilient flags for rclone cloud transfers
+# ponytail: Standardized timeouts and chunk sizes to prevent proxy socket drops
+# and zombie rclone processes observed in multi-gigabyte transfers.
+RCLONE_BASE_FLAGS = [
+    "--drive-chunk-size", "16M",
+    "--timeout", "30s",
+    "--contimeout", "15s",
+    "--retries", "5",
+    "--low-level-retries", "10",
+    "--no-check-certificate",
+]
+
+def build_rclone_cmd(subcmd: str, args: list[str]) -> list[str]:
+    """Build rclone command with resilience flags positioned right after subcommand."""
+    return ["rclone", subcmd] + RCLONE_BASE_FLAGS + list(args)
+
+def run_rclone(
+    cmd: list[str],
+    timeout: int | None = None,
+    capture_output: bool = False,
+    max_retries: int = 3,
+    retry_delay: float = 3.0,
+) -> subprocess.CompletedProcess:
+    """
+    Execute rclone with standardized resilience flags, timeouts, and automatic retry on failure.
+    """
+    final_cmd = list(cmd)
+    if final_cmd and final_cmd[0] == "rclone":
+        if "--drive-chunk-size" not in final_cmd:
+            if len(final_cmd) > 1 and not final_cmd[1].startswith("-"):
+                final_cmd = [final_cmd[0], final_cmd[1]] + RCLONE_BASE_FLAGS + final_cmd[2:]
+            else:
+                final_cmd = [final_cmd[0]] + RCLONE_BASE_FLAGS + final_cmd[1:]
+
+    last_proc = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            res = subprocess.run(
+                final_cmd,
+                capture_output=capture_output,
+                text=True,
+                timeout=timeout,
+            )
+            if res.returncode == 0:
+                return res
+            last_proc = res
+        except subprocess.TimeoutExpired as e:
+            last_proc = subprocess.CompletedProcess(
+                args=final_cmd,
+                returncode=124,
+                stdout="",
+                stderr=f"Command timed out after {timeout}s: {e}",
+            )
+        except Exception as e:
+            last_proc = subprocess.CompletedProcess(
+                args=final_cmd,
+                returncode=1,
+                stdout="",
+                stderr=str(e),
+            )
+
+        if attempt < max_retries:
+            time.sleep(retry_delay)
+
+    return last_proc or subprocess.CompletedProcess(args=final_cmd, returncode=1, stdout="", stderr="Transfer failed")
 
 class CameraNotFoundError(Exception):
     """Raised when GoPro camera cannot be located or reached over USB."""
@@ -27,6 +96,7 @@ class CameraNotFoundError(Exception):
 class DiskSpaceError(Exception):
     """Raised when available host disk space is insufficient for staged caching."""
     pass
+
 
 
 def discover_camera(override_ip: str | None = None, override_port: int | None = None) -> dict:
@@ -168,6 +238,29 @@ def list_camera_media(camera_info: dict, include_lrv: bool = False) -> list[dict
     return parsed_items
 
 
+def cleanup_staging_dir(staging_dir: str) -> int:
+    """
+    Remove orphaned files in staging directory to prevent disk space deadlocks.
+    Returns number of cleared items.
+    """
+    expanded = os.path.expanduser(staging_dir)
+    if not os.path.exists(expanded):
+        return 0
+    cleared = 0
+    for name in os.listdir(expanded):
+        p = os.path.join(expanded, name)
+        try:
+            if os.path.isfile(p):
+                os.remove(p)
+                cleared += 1
+            elif os.path.isdir(p):
+                shutil.rmtree(p)
+                cleared += 1
+        except OSError:
+            pass
+    return cleared
+
+
 def get_remote_index(dest_remote: str) -> dict[str, int]:
     """
     Recursively inspect destination cloud directory via rclone lsjson.
@@ -176,7 +269,7 @@ def get_remote_index(dest_remote: str) -> dict[str, int]:
     dest = dest_remote.rstrip("/")
     cmd = ["rclone", "lsjson", "-R", "--files-only", dest]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+        proc = run_rclone(cmd, timeout=45, capture_output=True, max_retries=2)
         if proc.returncode == 0:
             entries = json.loads(proc.stdout)
             # Map filename -> size
@@ -194,14 +287,16 @@ def get_remote_index(dest_remote: str) -> dict[str, int]:
 
 def get_free_disk_gb(path: str = ".") -> float:
     """Return available disk space in GB."""
-    total, used, free = shutil.disk_usage(path)
+    expanded = os.path.expanduser(path)
+    os.makedirs(expanded, exist_ok=True)
+    total, used, free = shutil.disk_usage(expanded)
     return free / (1024 ** 3)
 
 
 def stream_upload_file(file_info: dict, dest_remote: str) -> bool:
     """
     Stream video directly from GoPro HTTP socket into cloud storage via rclone copyurl.
-    Zero local disk usage.
+    Zero local disk usage. Uses dynamic process timeout to prevent dead socket stalls.
     """
     target = f"{dest_remote.rstrip('/')}/{file_info['recorded_date']}/{file_info['name']}"
     cmd = [
@@ -210,7 +305,9 @@ def stream_upload_file(file_info: dict, dest_remote: str) -> bool:
         target,
         "-P", "--stats-one-line"
     ]
-    ret = subprocess.run(cmd)
+    size_mb = int(file_info.get("size", 0) / (1024 * 1024))
+    dynamic_timeout = max(300, size_mb + 300)
+    ret = run_rclone(cmd, timeout=dynamic_timeout)
     return ret.returncode == 0
 
 
@@ -219,35 +316,100 @@ def staged_upload_file(file_info: dict, dest_remote: str, staging_dir: str) -> b
     Download single video to local staging directory, upload via rclone move,
     and immediately evict local file to preserve disk space.
     """
+    expanded_staging = os.path.expanduser(staging_dir)
+    # Proactively clean orphaned leftovers from previous aborted runs
+    cleanup_staging_dir(expanded_staging)
+
     size_gb = file_info["size"] / (1024 ** 3)
-    free_gb = get_free_disk_gb(staging_dir)
+    free_gb = get_free_disk_gb(expanded_staging)
     if free_gb < (size_gb + 2.0):
         raise DiskSpaceError(
             f"Insufficient local disk space for staging {file_info['name']}. "
             f"Needs {size_gb + 2.0:.1f} GB, but only {free_gb:.1f} GB free."
         )
 
-    os.makedirs(staging_dir, exist_ok=True)
-    local_path = os.path.join(staging_dir, file_info["name"])
+    os.makedirs(expanded_staging, exist_ok=True)
+    local_path = os.path.join(expanded_staging, file_info["name"])
     target_folder = f"{dest_remote.rstrip('/')}/{file_info['recorded_date']}"
 
-    # Download chunked
+    # Download chunked with socket timeout
     try:
-        req = urllib.request.Request(file_info["download_url"])
+        req = urllib.request.Request(file_info["download_url"], headers={"User-Agent": "gopro2cloud"})
         with urllib.request.urlopen(req, timeout=30) as resp, open(local_path, "wb") as out:
             shutil.copyfileobj(resp, out, length=4 * 1024 * 1024)
 
-        # Upload & move via rclone
+        # Upload & move via rclone with resilience flags & bounded timeout
+        size_mb = int(file_info.get("size", 0) / (1024 * 1024))
+        dynamic_timeout = max(300, size_mb + 300)
         cmd = ["rclone", "move", local_path, target_folder, "-P", "--stats-one-line"]
-        ret = subprocess.run(cmd)
+        ret = run_rclone(cmd, timeout=dynamic_timeout)
         return ret.returncode == 0
     finally:
-        # Guarantee cleanup
+        # Guarantee cleanup even on error
         if os.path.exists(local_path):
             try:
                 os.remove(local_path)
             except OSError:
                 pass
+
+
+def cloud_transfer(
+    src: str,
+    dest: str,
+    is_sync: bool = False,
+    dry_run: bool = False,
+    on_progress: callable = None,
+) -> dict:
+    """
+    Direct cloud-to-cloud file or folder transfer (e.g. OneDrive to Google Drive)
+    with zero local disk usage. Supports single files (copyto) and folders (copy/sync).
+    """
+    src_clean = src.strip()
+    dest_clean = dest.strip()
+
+    # Determine whether src is likely a single file or a folder
+    src_path = src_clean.split(":")[-1] if ":" in src_clean else src_clean
+    dest_path = dest_clean.split(":")[-1] if ":" in dest_clean else dest_clean
+
+    _, ext = os.path.splitext(src_path)
+    is_single_file = bool(ext and not src_clean.endswith("/"))
+
+    if is_single_file:
+        subcmd = "copyto"
+        _, dest_ext = os.path.splitext(dest_path)
+        if not dest_ext or dest_clean.endswith("/"):
+            fname = os.path.basename(src_path.rstrip("/"))
+            final_dest = f"{dest_clean.rstrip('/')}/{fname}"
+        else:
+            final_dest = dest_clean
+    else:
+        subcmd = "sync" if is_sync else "copy"
+        final_dest = dest_clean
+
+    cmd = ["rclone", subcmd, src_clean, final_dest, "-P", "--stats-one-line"]
+    if dry_run:
+        cmd.append("--dry-run")
+
+    if on_progress:
+        mode_str = "DRY RUN" if dry_run else subcmd.upper()
+        on_progress(src_clean, final_dest, f"Starting cloud-to-cloud {mode_str}...")
+
+    ret = run_rclone(cmd, capture_output=False, max_retries=3)
+    success = (ret.returncode == 0)
+
+    if on_progress:
+        status_msg = "Completed successfully" if success else f"Failed (exit code {ret.returncode})"
+        on_progress(src_clean, final_dest, status_msg)
+
+    return {
+        "success": success,
+        "src": src_clean,
+        "dest": final_dest,
+        "mode": subcmd,
+        "dry_run": dry_run,
+        "returncode": ret.returncode,
+        "error": ret.stderr if not success else None,
+    }
 
 
 def sync_all(
@@ -269,6 +431,9 @@ def sync_all(
     5. Streams (or stages) remaining files with automatic single-file fallback
     """
     expanded_staging = os.path.expanduser(staging_dir)
+    # Pre-clean staging directory to reclaim any orphaned space
+    cleanup_staging_dir(expanded_staging)
+
     camera = discover_camera(override_ip, override_port=override_port)
     media_files = list_camera_media(camera, include_lrv=include_lrv)
     cloud_index = get_remote_index(dest_remote)

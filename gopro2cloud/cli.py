@@ -11,6 +11,7 @@ from gopro2cloud.core import (
     get_remote_index,
     get_free_disk_gb,
     sync_all,
+    cloud_transfer,
     CameraNotFoundError,
 )
 
@@ -129,10 +130,42 @@ def cmd_sync(args):
     if results["failed"]:
         sys.exit(2)
 
+def cmd_cloud_transfer_cli(args, is_sync: bool = False):
+    action = "Sync" if is_sync else "Copy"
+    print("=" * 65)
+    print(f"  gopro2cloud: Direct Cloud-to-Cloud {action} (Zero Local Disk)")
+    print(f"  Source:      {args.src}")
+    print(f"  Destination: {args.dest}")
+    if args.dry_run:
+        print("  [DRY RUN - No remote changes will be made]")
+    print("=" * 65)
+
+    def on_prog(src_p, dest_p, msg):
+        print(f"  {msg}")
+
+    res = cloud_transfer(
+        src=args.src,
+        dest=args.dest,
+        is_sync=is_sync,
+        dry_run=args.dry_run,
+        on_progress=on_prog,
+    )
+
+    print("\n" + "=" * 65)
+    if res["success"]:
+        print(f"  [✓] {action} completed successfully.")
+        print("=" * 65)
+    else:
+        print(f"  [✗] {action} failed.")
+        if res.get("error"):
+            print(f"  Error: {res['error']}")
+        print("=" * 65)
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="gopro2cloud",
-        description="Stream and sync GoPro videos directly to any cloud storage."
+        description="Stream and sync GoPro videos and cloud files directly to cloud storage."
     )
     parser.add_argument("--ip", help="Explicit GoPro IP override (default: auto-discover)")
 
@@ -153,6 +186,26 @@ def main():
     p_sync.add_argument("--include-lrv", action="store_true", help="Include .LRV preview files")
     p_sync.add_argument("--dry-run", action="store_true", help="Simulate sync without uploading")
 
+    # cloud-copy (single file or folder copy between clouds)
+    p_cc = subparsers.add_parser(
+        "cloud-copy",
+        aliases=["cloudcopy", "copy-cloud"],
+        help="Direct cloud-to-cloud copy of a single file or folder (e.g. onedrive:file.mp4 gdrive:GoPro/)"
+    )
+    p_cc.add_argument("src", help="Source cloud path (e.g. onedrive:Brazil_Travel_2026/clip.mp4)")
+    p_cc.add_argument("dest", help="Destination cloud path (e.g. gdrive:GoPro/)")
+    p_cc.add_argument("--dry-run", action="store_true", help="Simulate copy without transferring")
+
+    # cloud-sync (folder sync between clouds)
+    p_cs = subparsers.add_parser(
+        "cloud-sync",
+        aliases=["cloudsync", "sync-cloud"],
+        help="Direct cloud-to-cloud folder synchronization"
+    )
+    p_cs.add_argument("src", help="Source cloud folder (e.g. onedrive:Brazil_Travel_2026)")
+    p_cs.add_argument("dest", help="Destination cloud folder (e.g. gdrive:GoPro/Brazil_Travel_2026)")
+    p_cs.add_argument("--dry-run", action="store_true", help="Simulate synchronization without modifying files")
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -164,6 +217,31 @@ def main():
         cmd_list(args)
     elif args.command == "sync":
         cmd_sync(args)
+    elif args.command in ("cloud-copy", "cloudcopy", "copy-cloud"):
+        cmd_cloud_transfer_cli(args, is_sync=False)
+    elif args.command in ("cloud-sync", "cloudsync", "sync-cloud"):
+        cmd_cloud_transfer_cli(args, is_sync=True)
+
+def main_cloudsync():
+    """
+    Dedicated standalone entrypoint for the 'cloudsync' CLI tool.
+    Usage:
+      cloudsync onedrive:folder gdrive:folder
+      cloudsync onedrive:folder/clip.mp4 gdrive:folder/
+      cloudsync onedrive:folder gdrive:folder --sync
+      cloudsync onedrive:folder gdrive:folder --dry-run
+    """
+    parser = argparse.ArgumentParser(
+        prog="cloudsync",
+        description="Direct in-memory cloud-to-cloud file copy and directory sync (zero local disk usage)."
+    )
+    parser.add_argument("src", help="Source cloud path (e.g. onedrive:Brazil_Travel_2026)")
+    parser.add_argument("dest", help="Destination cloud path (e.g. gdrive:GoPro/Brazil_Travel_2026)")
+    parser.add_argument("--sync", action="store_true", help="Synchronize directory (reconcile destination) instead of copy")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate transfer without making remote changes")
+
+    args = parser.parse_args()
+    cmd_cloud_transfer_cli(args, is_sync=args.sync)
 
 if __name__ == "__main__":
     main()
