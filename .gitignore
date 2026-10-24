@@ -39,3 +39,11 @@ tmp/
 # Logs & Workspace Sessions
 *.log
 .sessions/
+
+# Local backup runners and PID state
+*.pid
+*.out
+backup_exclude.txt
+start_backup.sh
+pause_backup.sh
+check_status.sh

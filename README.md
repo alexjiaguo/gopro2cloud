@@ -1,62 +1,68 @@
 <div align="center">
 
-# 📷 gopro2cloud
+# ☁️ UniCloud
 
-### The Free, Zero-Disk, Open-Source Alternative to GoPro Cloud Subscription.
+### The Universal Multi-Cloud Transfer Platform & Local-to-Cloud Orchestrator.
 
-Stream and sync 100+ GB of 4K/5.3K footage from your GoPro **directly** to Google Drive, Dropbox, OneDrive, or AWS S3 over high-speed USB — with **zero laptop disk space** and **no monthly fees**.
+Transfer, synchronize, and back up files across **Local Storage**, **40+ Cloud Providers** (Google Drive, OneDrive, Dropbox, AWS S3, Cloudflare R2), and **USB Streaming Devices** (GoPro HERO 9–13) — with **zero local disk footprint**, **persistent background supervision**, **interactive web dashboard**, and **AI Agent MCP tools**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.11%2B-brightgreen.svg)](pyproject.toml)
-[![Storage: 0 MB Local](https://img.shields.io/badge/Local%20Disk-0%20MB%20Footprint-success.svg)]()
-[![Free Alternative](https://img.shields.io/badge/GoPro%20Subscription-$0%2Fyear-orange.svg)]()
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)]()
+[![Local Disk: 0 MB](https://img.shields.io/badge/Local%20Disk-0%20MB%20Footprint-success.svg)]()
+[![Free & Open Source](https://img.shields.io/badge/License-Open%20Source-orange.svg)]()
 
-[Features](#-why-gopro2cloud) • [Comparison](#-gopro2cloud-vs-gopro-subscription) • [Quick Start](#-quick-start) • [CLI Usage](#-cli-usage) • [AI Agent & MCP](#-ai-agent--mcp-server) • [Contributing](#-contributing)
+[Architecture](#-architecture) • [Features](#-key-features) • [Quick Start](#-quick-start) • [CLI Reference](#-cli-reference) • [Task Supervisor](#-background-task-manager) • [Web Dashboard](#-visual-web-dashboard) • [AI Agent MCP](#-ai-agent--mcp-server) • [GoPro Streamer](#-gopro-zero-disk-streaming)
 
 </div>
 
 ---
 
-## 💡 Why gopro2cloud?
+## 🏗️ Architecture
 
-If you own a GoPro, you already know the frustration:
-- **GoPro Subscription costs \$49.99 – \$99.99/year**, just to back up footage you already have other cloud storage for (Google One, Microsoft 365, Dropbox, or AWS S3).
-- **Camera Wi-Fi Auto-Upload is painfully slow**, drains your battery, and notoriously causes the camera to overheat while uploading 4K/5.3K video.
-- **Plugging into your Mac/PC to transfer files manually is broken:** macOS Image Capture and MTP drivers frequently freeze or corrupt on single files larger than 4 GB.
-- **Laptop SSDs run out of space:** Offloading a 128 GB or 256 GB microSD card onto a modern MacBook with only 30 GB of free SSD space is physically impossible without tedious manual chunking.
-
-**`gopro2cloud` solves all of this.**
-
-When you connect a modern GoPro (HERO 9, 10, 11, 12, 13) via USB-C, it automatically runs an internal high-speed HTTP server over a virtual network interface. `gopro2cloud` discovers this socket, queries the media catalogue, and **streams your master video files directly into your cloud storage at 35–40 MB/s without writing a single byte to your laptop hard drive.**
-
----
-
-## 🥊 gopro2cloud vs. GoPro Paid Subscription
-
-| Feature | GoPro Paid Cloud Subscription | Native Desktop / Quik App | **gopro2cloud (This Tool)** |
-| :--- | :---: | :---: | :---: |
-| **Annual Cost** | **\$49.99 – \$99.99 / year** 💸 | Free (Requires Desktop) | **$0 Forever (Free & Open Source)** 🚀 |
-| **Cloud Destination** | GoPro Cloud only (Vendor Lock-in) | Local Disk Only | **Any Cloud** (Google Drive, Dropbox, OneDrive, S3, R2, B2) |
-| **Local Disk Required** | High (downloads cached copies) | Full card size required (100+ GB) | **0 MB (Pure In-Memory Stream)** ⚡ |
-| **Transfer Speed** | Slow (Wi-Fi ~5–10 MB/s) | Medium (USB MTP crashes on >4GB) | **Fast (USB HTTP ~35–40 MB/s)** 🏎️ |
-| **Camera Overheating** | High (Wi-Fi upload gets very hot) | Low | **Low (Powered & cool over USB)** |
-| **Data Privacy & Ownership** | Stored on GoPro servers | Local | **100% Private (Direct to YOUR cloud)** |
-| **Smart Date Categorization** | Cloud timeline | Flat DCIM folder mess | **Automated `YYYY-MM-DD/` Folders** 📁 |
-| **Multi-Chapter Handling** | Sometimes split in UI | Scattered `GX01`, `GX02` files | **Chapters unified under Chapter 1 Date** |
-| **Deduplication** | Automatic | None (overwrites or duplicates) | **Automatic (Skips existing cloud files)** |
-| **AI Agent / CLI Scriptable** | ❌ No | ❌ No | **✅ Yes (CLI + FastMCP Server + Skills)** |
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        User & Agent Control Layer                      │
+│                                                                        │
+│   [ Unified CLI ]          [ FastMCP 2.0 Server ]       [ Web Dashboard]│
+│   (cp, sync, ls, jobs)     (Antigravity/Cursor/Claude)  (Local GUI)    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     UniCloud Orchestration Core                        │
+│                                                                        │
+│  ┌───────────────────────┐  ┌──────────────────────┐  ┌──────────────┐  │
+│  │ Unified StorageURI    │  │ Persistent Job Queue │  │ Deduplication│  │
+│  │ (local/remote/stream) │  │ (Atomic JSON / State)│  │ & Checksums  │  │
+│  └───────────────────────┘  └──────────────────────┘  └──────────────┘  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Engine & Connector Matrix                       │
+│                                                                        │
+│  ┌───────────────────────────────┐   ┌───────────────────────────────┐ │
+│  │    Universal Cloud Engine     │   │     Specialized Connectors    │ │
+│  │  (Rclone Multi-Cloud Mesh)    │   │  (OpenGoPro USB Socket Stream)│ │
+│  │  • Google Drive   • Dropbox   │   │  • GoPro HERO 9-13 USB/Wi-Fi  │ │
+│  │  • OneDrive       • AWS S3    │   │  • Auto-chapter date grouping │ │
+│  │  • Cloudflare R2  • WebDAV/OSS│   │  • Zero-disk pipe (`copyurl`) │ │
+│  └───────────────────────────────┘   └───────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## ✨ Key Features
 
-- **🚀 Direct In-Memory Streaming:** Uses `rclone copyurl` to pipe video bytes straight from the camera socket into your cloud bucket. No local scratch files, no SSD wear.
-- **☁️ CloudSync (Cloud-to-Cloud Direct):** Transfer single files or synchronize entire folders directly between cloud storage providers (OneDrive, Google Drive, Dropbox, AWS S3) with zero local disk footprint.
-- **📁 Smart Date & Chapter Organization:** Automatically sorts recordings into `<remote>/YYYY-MM-DD/` directories. Long 4K recordings split across multiple chapters (`GX010475.MP4`, `GX020475.MP4`) are kept together under Chapter 1's date.
-- **🔁 Intelligent Deduplication:** Checks destination folders before transferring. If a video already exists in your cloud with matching name and size, it is automatically skipped.
-- **🛡️ 100% Card Safety:** `gopro2cloud` never deletes or modifies media on your microSD card unless you explicitly request a post-sync purge.
-- **🤖 Built for the AI Era (FastMCP):** Ships with a native Model Context Protocol (MCP) server and Agent Skills. You can plug in your GoPro and simply say: *"Hey, back up my GoPro to Google Drive"*.
+- **🌐 Universal Transfer Matrix (`StorageURI`)**: Transfer files between any combination of Local directories (`/Volumes/Backup`), Cloud Remotes (`gdrive:`, `onedrive:`, `s3:`), and live HTTP streams.
+- **☁️ Zero-Disk Cloud-to-Cloud**: Pipe data straight from one cloud to another without staging or downloading a single byte to your laptop hard drive.
+- **⚙️ Persistent Background Task Supervisor**: Launch asynchronous background backups that survive terminal disconnection. Pause, resume, and track live speed (MB/s), ETA, and percentage progress.
+- **📊 Visual Web Dashboard (`unicloud web`)**: Lightweight local GUI with connected cloud storage gauges, live progress tables, and quick-transfer dialogs.
+- **📷 Battle-Tested GoPro Zero-Disk Streamer**: Retains full GoPro HERO 9-13 USB offloading with automatic recording date sorting, multi-chapter grouping, and deduplication.
+- **🤖 Built for AI Agents (FastMCP 2.0)**: Native Model Context Protocol server exposing remote browsing, file transfers, and task supervision to Antigravity, Claude Desktop, Cursor, and Windsurf.
+- **🔄 100% Backwards Compatible**: Existing `gopro2cloud` and `cloudsync` commands and scripts remain fully functional as aliases.
 
 ---
 
@@ -64,154 +70,152 @@ When you connect a modern GoPro (HERO 9, 10, 11, 12, 13) via USB-C, it automatic
 
 ### 1. Prerequisites
 - **Python:** 3.11 or newer
-- **rclone:** The universal cloud transfer utility (free & open source)
+- **rclone:** The universal cloud transfer utility
   ```bash
   # macOS
   brew install rclone
 
   # Linux
-  sudo apt install rclone   # or curl https://rclone.org/install.sh | sudo bash
-
-  # Windows
-  winget install Rclone.Rclone
+  sudo apt install rclone
   ```
 
-### 2. Configure Your Cloud (1 Minute)
-Connect your favorite cloud provider to `rclone` (Google Drive, Dropbox, OneDrive, S3):
+### 2. Configure Your Cloud Accounts
+Connect your cloud storage providers (Google Drive, OneDrive, Dropbox, S3):
 ```bash
 rclone config
 ```
-*(Just name your remote, e.g. `gdrive`, choose your provider, and approve in the browser popup).*
 
-### 3. Install gopro2cloud
+### 3. Install UniCloud
 ```bash
-git clone https://github.com/alexjiaguo/gopro2cloud.git
-cd gopro2cloud
+git clone https://github.com/alexjiaguo/gopro2cloud.git unicloud
+cd unicloud
 pip install -e .
 ```
 
 ---
 
-## 💻 CLI Usage
+## 💻 CLI Reference
 
-Plug your GoPro into your computer using a USB-C cable and turn it ON.
-
-### 1. Check Status
-Verify your camera link, local disk space, and cloud connections:
+### 1. Quick File & Folder Transfer
 ```bash
-gopro2cloud status
-```
-```text
-============================================================
-      gopro2cloud: Camera & Cloud Status Check
-============================================================
-1. Probing GoPro over USB...
-   [✓] Connected to GoPro at 172.28.158.51:80
-       Found 24 video files (104.78 GB total)
+# Upload a local file to Google Drive
+unicloud cp /Volumes/Backup/presentation.pdf gdrive:Documents/
 
-2. Local host storage: 58.12 GB free
+# Mirror an entire local directory into OneDrive
+unicloud sync /Volumes/Backup onedrive:Backup_2026/
 
-3. Cloud remote index: 'gdrive:GoPro'
-   [✓] Found 8 existing files already backed up in 'gdrive:GoPro'
-============================================================
+# Direct Cloud-to-Cloud copy (Zero Local Disk)
+unicloud cp onedrive:Photos/sample.mp4 gdrive:GoPro/
+unicloud sync onedrive:Vacation gdrive:Backup/Vacation
+
+# Dry-run preview
+unicloud cp /Volumes/Backup gdrive:Backup/ --dry-run
 ```
 
-### 2. View Categorized Media
-Inspect all videos grouped by their real recording date:
+### 2. Cloud & Storage Exploration
 ```bash
-gopro2cloud list
-```
-```text
-Found 24 files (104.78 GB total) across 3 recording dates:
+# List all configured cloud providers
+unicloud remotes
 
-📁 2026-09-27/ (3 files, 4.85 GB)
-   • GX010467.MP4      46.4 MB  -> 2026-09-27/GX010467.MP4
-   • GX010468.MP4      4.05 GB  -> 2026-09-27/GX010468.MP4
-📁 2026-09-28/ (18 files, 77.25 GB)
-   • GX010475.MP4     11.06 GB  -> 2026-09-28/GX010475.MP4
-   • GX020475.MP4      8.94 GB  -> 2026-09-28/GX020475.MP4  [Chapter 2 kept together]
+# Browse directory on cloud or local storage
+unicloud ls gdrive:Photos
+unicloud ls /Volumes/Backup -R
+
+# Run cloud provider configuration assistant
+unicloud config
 ```
 
-### 3. Start Streaming Sync
-Stream everything directly to your cloud destination:
+---
+
+## ⚙️ Background Task Manager
+
+Replace brittle shell scripts with UniCloud's native, atomic job supervisor:
+
 ```bash
-# Direct zero-disk streaming into Google Drive
-gopro2cloud sync --dest gdrive:GoPro
+# 1. Start background backup job
+unicloud jobs start /Volumes/Backup gdrive:graduate_period_files --exclude-from backup_exclude.txt
 
-# Dry-run to preview what will be skipped and uploaded
-gopro2cloud sync --dest gdrive:GoPro --dry-run
+# 2. List all active and past jobs
+unicloud jobs list
 
-# Upload to Dropbox or AWS S3 instead
-gopro2cloud sync --dest dropbox:GoPro_Backups
-gopro2cloud sync --dest s3:my-video-bucket/gopro
+# 3. Check live telemetry (progress bar, speed, ETA, recent logs)
+unicloud jobs status <job_id>
+
+# 4. Pause an active transfer (SIGSTOP)
+unicloud jobs pause <job_id>
+
+# 5. Resume a paused or interrupted transfer (SIGCONT / checkpoint restart)
+unicloud jobs resume <job_id>
+
+# 6. Cancel a transfer
+unicloud jobs cancel <job_id>
+
+# 7. Tail transfer logs
+unicloud jobs log <job_id> -n 50
 ```
 
-### 4. ☁️ CloudSync: Direct Cloud-to-Cloud Transfers (Zero Local Disk)
-Transfer single files or folders between any configured cloud remotes (e.g. OneDrive to Google Drive) without downloading to local disk:
+---
+
+## 🖥️ Visual Web Dashboard
+
+Launch the local interactive GUI in your browser:
+
 ```bash
-# Using the standalone cloudsync command
-cloudsync onedrive:Photos/sample.mp4 gdrive:GoPro/
-cloudsync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --sync
-cloudsync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --dry-run
-
-# Or using gopro2cloud subcommands
-gopro2cloud cloud-copy onedrive:Photos/sample.mp4 gdrive:GoPro/
-gopro2cloud cloud-sync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026
-gopro2cloud cloudsync onedrive:Brazil_Travel_2026 gdrive:GoPro/Brazil_Travel_2026 --dry-run
+unicloud web
+# Or alias:
+unicloud ui
 ```
+- **Storage Gauges:** Live capacity metrics for local disk and cloud accounts.
+- **Task Supervisor Table:** Real-time transfer progress bars, MB/s speed gauges, and pause/resume buttons.
+- **Quick Launcher:** Drag-and-drop or select source and destination paths to initiate transfers.
+
+---
+
+## 📷 GoPro Zero-Disk Streaming
+
+All battle-tested GoPro USB HTTP streaming capabilities are preserved:
+
+```bash
+# Check camera USB link and cloud index
+unicloud camera status
+
+# List media grouped by recording date
+unicloud camera list
+
+# Stream footage directly to cloud (0 MB local disk footprint)
+unicloud camera sync --dest gdrive:GoPro
+unicloud camera sync --dest gdrive:GoPro --dry-run
+```
+
+*Legacy aliases (`gopro2cloud status`, `cloudsync onedrive:folder gdrive:folder`) remain 100% operational.*
 
 ---
 
 ## 🤖 AI Agent & MCP Server
 
-`gopro2cloud` includes a native **FastMCP Server** that exposes camera discovery and transfer tools directly to AI coding assistants like **Antigravity, Claude Desktop, Cursor, and Windsurf**.
+UniCloud exposes full multi-cloud management to AI coding assistants via FastMCP 2.0.
 
-Add this to your MCP configuration (`claude_desktop_config.json` or `mcp_config.json`):
+Add to your MCP configuration (`claude_desktop_config.json` or `mcp_config.json`):
 
 ```json
 {
   "mcpServers": {
-    "gopro2cloud": {
+    "unicloud": {
       "command": "python3",
-      "args": ["-m", "gopro2cloud.mcp_server"]
+      "args": ["-m", "unicloud.mcp_server"]
     }
   }
 }
 ```
 
-Now you can control your camera conversationally:
-> *"Hey, what videos are on my GoPro?"*  
-> *"Check if my GoPro is connected and sync the newest clips to Google Drive."*  
-> *"Copy my vacation folder from OneDrive to Google Drive."*
-
----
-
-## 🗺️ Roadmap
-
-- [x] Zero-disk direct HTTP streaming (`rclone copyurl`)
-- [x] Direct cloud-to-cloud file & folder transfers (`copyto` / `sync`)
-- [x] Resilient socket watchdog & deadlock-safe staging cleanup
-- [x] Intelligent recording date & chapter grouping
-- [x] Recursive deduplication (skips existing files)
-- [x] Multi-cloud support (Google Drive, Dropbox, OneDrive, S3/R2/B2)
-- [x] Standalone CLI + Self-contained integration test suite
-- [x] FastMCP Server & AI Agent Skills
-- [ ] Wireless offload over local Wi-Fi station mode
-- [ ] Lightweight background menu bar tray icon (macOS / Windows)
-- [ ] Automatic camera card cleanup option (with strict safety verification)
-
----
-
-## 🌟 Support & Contributing
-
-If this project saved you \$50/year on GoPro subscriptions or saved your laptop hard drive from filling up:
-
-- ⭐ **Star this repository** on GitHub!
-- 🍴 **Fork it** to add support for custom cloud scripts, hooks, or notifications.
-- 🐛 **Report issues** or submit Pull Requests — contributions are warmly welcome!
+Now you can instruct your agent conversationally:
+> *"Upload /Volumes/Backup to my Google Drive in the background and tell me the job ID."*  
+> *"Check how fast the current backup job is uploading."*  
+> *"Copy my vacation photos from OneDrive to Google Drive."*  
+> *"Probe my GoPro camera and stream new clips into Google Drive."*
 
 ---
 
 ## 📄 License
 
-Distributed under the [MIT License](LICENSE). Open source and free for everyone.
+MIT License. Free and open source forever.

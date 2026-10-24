@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gopro2cloud"
-version = "0.2.0"
-description = "Stream and sync GoPro videos directly to any cloud storage with zero local disk footprint"
+name = "unicloud"
+version = "0.3.0"
+description = "Universal multi-cloud transfer and local-to-cloud management platform"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -19,6 +19,8 @@ mcp = [
 ]
 
 [project.scripts]
-gopro2cloud = "gopro2cloud.cli:main"
-gopro2cloud-mcp = "gopro2cloud.mcp_server:main"
-cloudsync = "gopro2cloud.cli:main_cloudsync"
+unicloud = "unicloud.cli:main"
+unicloud-mcp = "unicloud.mcp_server:main"
+gopro2cloud = "unicloud.cli:main_gopro_legacy"
+gopro2cloud-mcp = "unicloud.mcp_server:main"
+cloudsync = "unicloud.cli:main_cloudsync"
