@@ -87,7 +87,7 @@ rclone config
 
 ### 3. Install UniCloud
 ```bash
-git clone https://github.com/alexjiaguo/gopro2cloud.git unicloud
+git clone https://github.com/alexjiaguo/unicloud.git
 cd unicloud
 pip install -e .
 ```
